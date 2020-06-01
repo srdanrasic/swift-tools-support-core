@@ -191,7 +191,7 @@ class ProcessTests: XCTestCase {
         do {
             let result = try Process.popen(args: script("simple-stdout-stderr"))
             XCTAssertEqual(try result.utf8Output(), "simple output\n")
-            XCTAssertEqual(try result.utf8stderrOutput(), "simple error")
+            XCTAssertEqual(try result.utf8stderrOutput(), "simple error\n")
         }
 
         // A long stdout and stderr output.
@@ -208,6 +208,28 @@ class ProcessTests: XCTestCase {
             let count = 16 * 1024
             XCTAssertEqual(try result.utf8Output(), String(repeating: "1", count: count))
             XCTAssertEqual(try result.utf8stderrOutput(), String(repeating: "2", count: count))
+        }
+    }
+
+    func testStdoutStdErrRedirected() throws {
+        // A simple script to check that stdout and stderr are captured in the same location.
+        do {
+            let process = Process(args: script("simple-stdout-stderr"), outputRedirection: .collect(redirectStderr: true))
+            try process.launch()
+            let result = try process.waitUntilExit()
+            XCTAssertEqual(try result.utf8Output(), "simple error\nsimple output\n")
+            XCTAssertEqual(try result.utf8stderrOutput(), "")
+        }
+
+        // A long stdout and stderr output.
+        do {
+            let process = Process(args: script("long-stdout-stderr"), outputRedirection: .collect(redirectStderr: true))
+            try process.launch()
+            let result = try process.waitUntilExit()
+
+            let count = 16 * 1024
+            XCTAssertEqual(try result.utf8Output(), String(repeating: "12", count: count))
+            XCTAssertEqual(try result.utf8stderrOutput(), "")
         }
     }
 
