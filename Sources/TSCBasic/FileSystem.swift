@@ -66,7 +66,7 @@ public enum FileSystemError: Swift.Error {
     case alreadyExistsAtDestination
 }
 
-extension FileSystemError {
+public extension FileSystemError {
     init(errno: Int32) {
         switch errno {
         case TSCLibc.EACCES:
@@ -281,7 +281,19 @@ private class LocalFileSystem: FileSystem {
 
     var currentWorkingDirectory: AbsolutePath? {
         let cwdStr = FileManager.default.currentDirectoryPath
+
+#if _runtime(_ObjC)
+        // The ObjC runtime indicates that the underlying Foundation has ObjC
+        // interoperability in which case the return type of
+        // `fileSystemRepresentation` is different from the Swift implementation
+        // of Foundation.
         return try? AbsolutePath(validating: cwdStr)
+#else
+        let fsr: UnsafePointer<Int8> = cwdStr.fileSystemRepresentation
+        defer { fsr.deallocate() }
+
+        return try? AbsolutePath(validating: String(cString: fsr))
+#endif
     }
 
     func changeCurrentWorkingDirectory(to path: AbsolutePath) throws {
@@ -899,3 +911,17 @@ extension FileSystem {
         }
     }
 }
+
+#if !os(Windows)
+extension dirent {
+    /// Get the directory name.
+    ///
+    /// This returns nil if the name is not valid UTF8.
+    public var name: String? {
+        var d_name = self.d_name
+        return withUnsafePointer(to: &d_name) {
+            String(validatingUTF8: UnsafeRawPointer($0).assumingMemoryBound(to: CChar.self))
+        }
+    }
+}
+#endif
